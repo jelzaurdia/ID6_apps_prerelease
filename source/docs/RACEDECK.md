@@ -21,8 +21,9 @@ configured if known (an F22 M240i is roughly 26.8 RPM per km/h at a 1.00 ratio),
 - The display shows 0 (unknown) at a standstill, while the converter slips or during a shift, and needs the
   same gear twice in a row before it changes.
 
-In a simulated drive the factor was learned within 0.1 % after one pull through first to fifth gear, and every
-gear read correctly afterwards (0 of 120 samples wrong).
+In a simulated drive the factor is trusted after six gear engagements (one pull from first to sixth, or two
+pulls to fifth), within 0.2 %; once learned, every gear read correctly (0 of 120 samples wrong). Until then
+the display shows unknown.
 
 ## Longitudinal g
 
