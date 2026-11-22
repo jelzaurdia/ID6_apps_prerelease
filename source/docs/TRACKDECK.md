@@ -41,6 +41,29 @@ Pure C99 with no HMI, I/O or diagnostics dependencies; it builds for ARM and fro
 
 Position noise along the track dominates: 3 m at 30 m/s is 0.1 s. A higher rate does not remove it.
 
+### The head unit's GPS is 1 Hz
+
+Read on an `NBTevo_S19322I` car, without opening any device: `dev-navsens` runs as
+`/bin/dev-navsens -C/etc/gps_G6_V7_ver20.cfg -Gd=/dev/ser3` on hu-omap and drives a u-blox receiver. The config
+sets 115200 baud, the automotive dynamic model and SBAS, and turns NMEA off in favour of binary UBX (NAV-POSLLH,
+NAV-VELNED, NAV-SOL, TIMEGPS…) once per solution. It sends no `CFG-RATE`, so the receiver keeps its default of one
+solution per second. Raising the rate would mean changing the head unit's system config or commanding the
+receiver behind the navigation, so TrackDeck should take 1 Hz as given.
+
+What that means:
+
+- Expect the 1 Hz rows above: tens of milliseconds on average, a few tenths at worst. Good enough to compare
+  laps within a session. Not a replacement for a dedicated 10-25 Hz logger (Dragy, RaceBox) when tenths matter.
+- Each fix carries the receiver's GPS time of week, so the interpolated crossing does not pick up arrival-time
+  jitter. A constant processing delay is the same on every lap and cancels out of lap times.
+- Between fixes, the crossing could be refined with the vehicle speed (the drive apps' OBD speed at about 15 Hz,
+  or NAV-VELNED). The OBD part is lost while another device holds the port.
+- **No inertial data.** The location capabilities the head unit gives CarPlay (iAP2,
+  `/pps/services/multimedia/iap2_wifi/location`) list GGA, RMC and vehicle speed, with no accelerometer, gyro or
+  heading. Longitudinal g can come from speed, as in `race_calc`. A lateral g from GPS (speed × heading rate) at
+  1 Hz is smoothed and late: fine for a corner's peak, too slow for a live g-ball. Live lateral g would need the
+  DSC sensors over ENET.
+
 ## Next steps
 
 1. **GPS source (to confirm on a car).** `libAppFramework.A.so` on `NBTevo_S19322I` exports the Car Data Service
@@ -48,7 +71,8 @@ Position noise along the track dominates: 3 m at 30 m/s is 0.1 s. A higher rate 
    `cdsRemovePropertyChangedEventHandler` and the `invokeCDSUpdate` virtual (slot 30, already in
    `sdk/bmw_list.h`). In BMW's Connected Apps API the position is `navigation.GPSPosition`
    (`{"GPSPosition":{"latitude":…,"longitude":…,"altitude":…}}`) and heading/speed come from
-   `navigation.GPSExtendedInfo`; the exact names and the update rate on NBT Evo still need checking.
+   `navigation.GPSExtendedInfo`; the exact names on NBT Evo still need checking (the receiver itself is 1 Hz,
+   see above).
    As #130 found, query a handful of known properties from posted tasks — never walk the whole property list
    on the HMI dispatcher thread.
 2. **Plugin** (`TrackDeck`): one screen with the running lap, last and best, a "Ready / cross the line" state,
