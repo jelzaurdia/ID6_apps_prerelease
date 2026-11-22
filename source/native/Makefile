@@ -57,6 +57,9 @@ build/exhaust-flap: src/workers/exhaust_flap_worker.c $(WORKER_COMMON) | build
 build/test-core: tests/test_core.c $(CORE) $(HEADERS) | build
 	$(CC) $(CFLAGS) -Isrc/common $(filter %.c,$^) -lm -o $@
 
+build/test-race-calc: tests/test_race_calc.c src/common/race_calc.c src/common/race_calc.h | build
+	$(CC) $(CFLAGS) -Isrc/common $(filter %.c,$^) -lm -o $@
+
 build/test-most: tests/test_most.c $(MOST) $(FAKE_DSI) $(MOST_HEADERS) | build
 	$(CC) $(CFLAGS) -pthread -DMOST_HOST -Isrc/common -Itests $(filter %.c,$^) -o $@
 
@@ -87,11 +90,12 @@ build/test-boost-preferences: tests/test_boost_preferences.cpp build/boost-test-
 launch-assets:
 	$(PYTHON) ../tools/launch_art.py
 
-test: build/xdrive-control build/boost-deck build/shift-deck build/mhd-maps build/engine-codes build/test-core build/test-most build/test-diag-link build/bootmod3 build/exhaust-flap build/test-launch-timer build/test-launch-records build/test-boost-preferences build/test-warm-progress build/warmdeck-collector build/mgflasher build/hybriddeck-collector
+test: build/xdrive-control build/boost-deck build/shift-deck build/mhd-maps build/engine-codes build/test-core build/test-most build/test-diag-link build/bootmod3 build/exhaust-flap build/test-launch-timer build/test-launch-records build/test-boost-preferences build/test-race-calc build/test-warm-progress build/warmdeck-collector build/mgflasher build/hybriddeck-collector
 	./build/test-warm-progress
 	./build/test-boost-preferences
 	./build/test-launch-timer
 	./build/test-launch-records
+	./build/test-race-calc
 	./build/test-core
 	./build/test-most
 	./build/test-diag-link
