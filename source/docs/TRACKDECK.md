@@ -12,7 +12,7 @@ its menus and the GPS source are the next steps below and need a QNX build and a
 
 - **Gate**: a start/finish line given by a centre point, the direction of travel and a half-width. A crossing
   counts only forwards and within the half-width, so driving back over the line or passing beside it in the
-  paddock does nothing. `lt_gate_from_motion` makes a gate from two fixes, as when the driver marks the line
+  paddock does nothing. `lap_gate_from_motion` makes a gate from two fixes, as when the driver marks the line
   while crossing it.
 - **Interpolated crossing time**: positions are projected on a local plane; the crossing time is linear between
   the fixes on either side of the line. A 1 Hz GPS still times a lap to a fraction of a second.

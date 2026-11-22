@@ -5,9 +5,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define LT_PI 3.14159265358979323846
-#define LT_EARTH_M 6371008.8              /* mean Earth radius */
-#define LT_DEG_M (LT_PI / 180.0 * LT_EARTH_M)
+#define LAP_PI 3.14159265358979323846
+#define LAP_EARTH_M 6371008.8              /* mean Earth radius */
+#define LAP_DEG_M (LAP_PI / 180.0 * LAP_EARTH_M)
 
 static int valid_point(double lat, double lon) {
     return isfinite(lat) && isfinite(lon) && fabs(lat) <= 90 && fabs(lon) <= 180;
@@ -19,34 +19,34 @@ static void local_xy(double lat0, double lon0, double lat, double lon, double *x
     double dlon = lon - lon0;
     if (dlon > 180) dlon -= 360;
     else if (dlon < -180) dlon += 360;
-    *x = dlon * LT_DEG_M * cos(lat0 * LT_PI / 180.0);
-    *y = (lat - lat0) * LT_DEG_M;
+    *x = dlon * LAP_DEG_M * cos(lat0 * LAP_PI / 180.0);
+    *y = (lat - lat0) * LAP_DEG_M;
 }
 
-void lt_config_default(lt_config *cfg) {
+void lap_config_default(lap_config *cfg) {
     cfg->min_lap_ms = 10000;
     cfg->max_gap_ms = 3000;
     cfg->max_speed_mps = 120;
     cfg->jump_slack_m = 30;
 }
 
-double lt_distance_m(double lat1, double lon1, double lat2, double lon2) {
+double lap_distance_m(double lat1, double lon1, double lat2, double lon2) {
     double dlon = lon2 - lon1, x, y;
     if (dlon > 180) dlon -= 360;
     else if (dlon < -180) dlon += 360;
-    x = dlon * LT_DEG_M * cos((lat1 + lat2) / 2 * LT_PI / 180.0);
-    y = (lat2 - lat1) * LT_DEG_M;
+    x = dlon * LAP_DEG_M * cos((lat1 + lat2) / 2 * LAP_PI / 180.0);
+    y = (lat2 - lat1) * LAP_DEG_M;
     return sqrt(x * x + y * y);
 }
 
-int lt_gate_from_motion(lt_gate *gate, double from_lat, double from_lon, double lat, double lon,
+int lap_gate_from_motion(lap_gate *gate, double from_lat, double from_lon, double lat, double lon,
                         double half_width_m) {
     double x, y, heading;
     if (!gate || !valid_point(from_lat, from_lon) || !valid_point(lat, lon) ||
         !isfinite(half_width_m) || half_width_m <= 0) return 0;
     local_xy(lat, lon, from_lat, from_lon, &x, &y);   /* where the car came from, seen from the line */
     if (x * x + y * y < 1.0) return 0;
-    heading = atan2(-x, -y) * 180.0 / LT_PI;          /* direction of travel: from -> line */
+    heading = atan2(-x, -y) * 180.0 / LAP_PI;          /* direction of travel: from -> line */
     if (heading < 0) heading += 360;
     gate->lat = lat;
     gate->lon = lon;
@@ -55,12 +55,12 @@ int lt_gate_from_motion(lt_gate *gate, double from_lat, double from_lon, double 
     return 1;
 }
 
-int lt_gate_crossing(const lt_gate *g, const lt_fix *a, const lt_fix *b, double *fraction) {
+int lap_gate_crossing(const lap_gate *g, const lap_fix *a, const lap_fix *b, double *fraction) {
     double ax, ay, bx, by, h, ux, uy, da, db, la, lb, f, lateral;
     if (!g || !a || !b || !valid_point(a->lat, a->lon) || !valid_point(b->lat, b->lon)) return 0;
     local_xy(g->lat, g->lon, a->lat, a->lon, &ax, &ay);
     local_xy(g->lat, g->lon, b->lat, b->lon, &bx, &by);
-    h = g->heading_deg * LT_PI / 180.0;
+    h = g->heading_deg * LAP_PI / 180.0;
     ux = sin(h);
     uy = cos(h);
     da = ax * ux + ay * uy;           /* signed distance along the direction of travel */
@@ -75,21 +75,21 @@ int lt_gate_crossing(const lt_gate *g, const lt_fix *a, const lt_fix *b, double 
     return 1;
 }
 
-void lt_session_init(lt_session *s, const lt_gate *start, const lt_gate *finish, const lt_config *cfg) {
+void lap_session_init(lap_session *s, const lap_gate *start, const lap_gate *finish, const lap_config *cfg) {
     memset(s, 0, sizeof *s);
     s->start = *start;
     s->circuit = finish == 0;
     s->finish = finish ? *finish : *start;
     if (cfg) s->cfg = *cfg;
-    else lt_config_default(&s->cfg);
-    s->state = LT_WAITING;
+    else lap_config_default(&s->cfg);
+    s->state = LAP_WAITING;
 }
 
-static uint64_t crossing_time(const lt_fix *a, const lt_fix *b, double fraction) {
+static uint64_t crossing_time(const lap_fix *a, const lap_fix *b, double fraction) {
     return a->t_ms + (uint64_t)(fraction * (double)(b->t_ms - a->t_ms) + 0.5);
 }
 
-unsigned lt_session_update(lt_session *s, const lt_fix *f) {
+unsigned lap_session_update(lap_session *s, const lap_fix *f) {
     unsigned events = 0;
     double fraction;
     uint64_t dt;
@@ -102,17 +102,17 @@ unsigned lt_session_update(lt_session *s, const lt_fix *f) {
     if (f->t_ms <= s->prev.t_ms) return 0;
     dt = f->t_ms - s->prev.t_ms;
     if (dt > s->cfg.max_gap_ms ||
-        lt_distance_m(s->prev.lat, s->prev.lon, f->lat, f->lon) >
+        lap_distance_m(s->prev.lat, s->prev.lon, f->lat, f->lon) >
             s->cfg.max_speed_mps * (double)dt / 1000.0 + s->cfg.jump_slack_m) {
         /* A dropout or a jump: a crossing hidden in it cannot be timed. */
-        if (s->state == LT_RUNNING && !s->lap_invalid) {
+        if (s->state == LAP_RUNNING && !s->lap_invalid) {
             s->lap_invalid = 1;
-            events |= LT_EVENT_INVALID;
+            events |= LAP_EVENT_INVALID;
         }
         s->prev = *f;
         return events;
     }
-    if (s->state == LT_RUNNING && lt_gate_crossing(&s->finish, &s->prev, f, &fraction)) {
+    if (s->state == LAP_RUNNING && lap_gate_crossing(&s->finish, &s->prev, f, &fraction)) {
         uint64_t t = crossing_time(&s->prev, f, fraction);
         if (t - s->lap_start_ms >= s->cfg.min_lap_ms) {
             uint64_t lap = t - s->lap_start_ms;
@@ -121,32 +121,32 @@ unsigned lt_session_update(lt_session *s, const lt_fix *f) {
             ++s->laps;
             if (s->last_valid && (!s->best_ms || lap < s->best_ms)) {
                 s->best_ms = lap;
-                events |= LT_EVENT_BEST;
+                events |= LAP_EVENT_BEST;
             }
             if (s->circuit) {
-                events |= LT_EVENT_LAP;
+                events |= LAP_EVENT_LAP;
                 s->lap_start_ms = t;          /* the line that ended this lap starts the next */
                 s->lap_invalid = 0;
             } else {
-                events |= LT_EVENT_FINISH;
-                s->state = LT_WAITING;
+                events |= LAP_EVENT_FINISH;
+                s->state = LAP_WAITING;
             }
         }
-    } else if (s->state == LT_WAITING && lt_gate_crossing(&s->start, &s->prev, f, &fraction)) {
-        s->state = LT_RUNNING;
+    } else if (s->state == LAP_WAITING && lap_gate_crossing(&s->start, &s->prev, f, &fraction)) {
+        s->state = LAP_RUNNING;
         s->lap_start_ms = crossing_time(&s->prev, f, fraction);
         s->lap_invalid = 0;
-        events |= LT_EVENT_START;
+        events |= LAP_EVENT_START;
     }
     s->prev = *f;
     return events;
 }
 
-uint64_t lt_session_elapsed(const lt_session *s, uint64_t now_ms) {
-    return s && s->state == LT_RUNNING && now_ms > s->lap_start_ms ? now_ms - s->lap_start_ms : 0;
+uint64_t lap_session_elapsed(const lap_session *s, uint64_t now_ms) {
+    return s && s->state == LAP_RUNNING && now_ms > s->lap_start_ms ? now_ms - s->lap_start_ms : 0;
 }
 
-int lt_gate_format(const lt_gate *gate, char *out, size_t len) {
+int lap_gate_format(const lap_gate *gate, char *out, size_t len) {
     int n;
     if (!gate || !out || !len) return -1;
     n = snprintf(out, len, "LTG1 %.7f %.7f %.2f %.2f\n", gate->lat, gate->lon, gate->heading_deg,
@@ -163,9 +163,9 @@ static int number(const char **cursor, double *out) {
     return 1;
 }
 
-int lt_gate_parse(const char *text, lt_gate *gate) {
+int lap_gate_parse(const char *text, lap_gate *gate) {
     const char *p = text;
-    lt_gate g;
+    lap_gate g;
     if (!text || !gate) return 0;
     while (isspace((unsigned char)*p)) ++p;
     if (strncmp(p, "LTG1", 4) || !isspace((unsigned char)p[4])) return 0;
